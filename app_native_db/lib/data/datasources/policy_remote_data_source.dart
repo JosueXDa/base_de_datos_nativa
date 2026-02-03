@@ -10,7 +10,7 @@ class PolicyRemoteDataSource {
 
   Future<PolizaCostModel> createPolicy(PolizaRequest request) async {
     final response = await client.post(
-      Uri.parse('http://localhost:9090/bdd_dto/api/poliza'),
+      Uri.parse('http://192.168.18.189:9090/bdd_dto/api/poliza'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode(request.toJson()),
     );

@@ -1,92 +1,62 @@
-# App Native DB - Gestión de Pólizas de Seguro
+# App Native DB - Arquitectura y Documentación
 
-Esta aplicación móvil, desarrollada en Flutter, permite gestionar y calcular el costo de pólizas de seguros de autos. Utiliza una arquitectura limpia (Clean Architecture) y Riverpod para el manejo de estados.
+Este proyecto implementa una aplicación móvil para la gestión y cálculo de pólizas de seguro de autos, siguiendo los principios de **Clean Architecture** y **Atomic Design**.
 
-## 🏗️ Arquitectura de la Aplicación
+## 🏗 Arquitectura
 
-La aplicación sigue los principios de **Clean Architecture**, dividiendo la lógica en capas bien definidas para asegurar la escalabilidad, mantenibilidad y facilidad de testeo.
+El proyecto está estructurado en tres capas principales, asegurando la separación de responsabilidades y la escalabilidad del código:
 
-```mermaid
-graph TD
-    subgraph Presentation_Layer
-        UI[UI Components / Pages]
-        Providers[Riverpod Providers]
-    end
+### 1. Domain (Dominio)
+Es el núcleo de la aplicación. Contiene la lógica de negocio pura y clases que modelan el problema, sin depender de librerías externas o frameworks de interfaz de usuario.
 
-    subgraph Domain_Layer
-        Entities[Entities]
-        RepoInterfaces[Repository Interfaces]
-    end
+-   **Entities**: Objetos fundamentales del negocio.
+    -   `PolizaRequest`: Representa los datos de entrada necesarios para cotizar una póliza (propietario, edad, modelo, valor, accidentes).
+    -   `PolizaCost`: Representa el resultado del cálculo de la póliza (costo total, desglose).
+-   **Repositories (Interfaces)**: Define los contratos que deben cumplir los repositorios de datos, permitiendo la inversión de dependencias.
+    -   `PolicyRepository`: Contrato para la creación/cálculo de pólizas.
+-   **Use Cases**: Encapsulan reglas de negocio específicas de la aplicación.
+    -   `CreatePolicyUseCase`: Orquestador que recibe una petición de póliza y delega la operación al repositorio.
 
-    subgraph Data_Layer
-        Models[Models / DTOs]
-        RepoImpl[Repository Implementation]
-        DataSources[Remote/Local DataSources]
-    end
+### 2. Data (Datos)
+Implementa la lógica de acceso a datos definida en la capa de dominio.
 
-    UI --> Providers
-    Providers --> RepoInterfaces
-    RepoImpl --> RepoInterfaces
-    RepoImpl --> DataSources
-    DataSources --> Models
-    Models -- extends --> Entities
-```
+-   **Repositories (Implementación)**:
+    -   `PolicyRepositoryImpl`: Implementación concreta de `PolicyRepository`. Coordina la obtención de datos desde las fuentes de datos (Data Sources).
+-   **Data Sources**:
+    -   `PolicyRemoteDataSource`: Encargado de la comunicación con servicios externos (API REST) para realizar los cálculos o persistencia.
 
-### Descripción de las Capas:
+### 3. Presentation (Presentación)
+Responsable de la interfaz de usuario y la gestión del estado visual.
 
-1.  **Domain (Dominio):** Es la capa central y más estable. Contiene las entidades de negocio (`Poliza`) y las interfaces de los repositorios. No tiene dependencias externas.
-2.  **Data (Datos):** Implementa las interfaces del dominio. Se encarga de la comunicación con fuentes externas (API REST en este caso), mapeo de JSON a Modelos (`PolizaModel`) y persistencia.
-3.  **Presentation (Presentación):** Contiene la UI (Widgets) y la lógica de estado a través de **Riverpod**. Los `Providers` actúan como puente entre la UI y la capa de Dominio.
+-   **State Management (Riverpod)**:
+    -   `PolicyNotifier`: Gestiona el estado de la pantalla de pólizas. Se encarga de llamar al caso de uso `CreatePolicyUseCase` y actualizar la UI con estados de carga (`AsyncValue.loading`), éxito (`AsyncValue.data`) o error (`AsyncValue.error`).
+-   **UI Structure (Atomic Design)**:
+    -   **Atoms**: Componentes indivisibles y básicos (ej. `AppText`).
+    -   **Molecules**: Grupos de átomos funcionales.
+    -   **Organisms**: Componentes complejos que forman secciones de la UI (ej. `PolicyForm`).
+    -   **Pages**: Pantallas completas que ensamblan organismos (ej. `PolicyPage`).
 
----
+## 💻 Explicación del Código
 
-## 🔄 Flujo de Datos
+### Flujo de Creación de Póliza
+1.  **Usuario**: Ingresa los datos en `PolicyPage` a través del formulario `PolicyForm`.
+2.  **Provider**: `PolicyNotifier.calculatePolicy()` es invocado con los datos del formulario.
+3.  **UseCase**: El provider construye el `PolizaRequest` y llama a `CreatePolicyUseCase`.
+4.  **Repository**: El caso de uso delega al `PolicyRepositoryImpl`.
+5.  **DataSource**: El repositorio usa `PolicyRemoteDataSource` para enviar los datos a la API (o simular el cálculo).
+6.  **Respuesta**: El resultado (`PolizaCost`) fluye de regreso hasta el Provider, que actualiza el estado, provocando la reconstrucción de la UI para mostrar los resultados.
 
-El siguiente diagrama muestra cómo fluye la información cuando un usuario crea una nueva póliza:
+## 🎨 Construcción de la Interfaz
 
-```mermaid
-sequenceDiagram
-    participant UI as PolizaForm (UI)
-    participant P as PolizaNotifier (Provider)
-    participant R as PolizaRepositoryImpl
-    participant DS as PolizaRemoteDataSource
-    participant API as Backend API
+La interfaz se construye utilizando **Flutter** y sigue el patrón **Atomic Design** para maximizar la reutilización:
 
-    UI->>P: crearPoliza(datos)
-    P->>P: state = loading
-    P->>R: crearPoliza(poliza)
-    R->>DS: crearPoliza(polizaModel)
-    DS->>API: POST /api/polizas
-    API-->>DS: JSON Response (costoTotal)
-    DS-->>R: PolizaModel
-    R-->>P: Poliza
-    P->>P: state = success(costo)
-    P-->>UI: Update View
-```
+-   **`lib/presentation/pages/policy_page.dart`**:
+    -   Es la pantalla principal.
+    -   Usa un `Scaffold` con un `AppBar`.
+    -   Escucha los cambios de estado mediante `ref.watch(policyNotifierProvider)`.
+    -   Renderiza el formulario (`PolicyForm`) y, condicionalmente, la sección de resultados si el cálculo fue exitoso.
+    -   La sección de resultados muestra detalles como el propietario, modelo y costo total formateado.
 
----
-
-## 🛠️ Tecnologías y Librerías
-
--   **Flutter:** Framework principal.
--   **Riverpod:** Gestión de estado reactiva y Dependency Injection.
--   **Http:** Cliente para realizar peticiones de red.
--   **Clean Architecture:** Patrón arquitectónico.
-
-## 📁 Estructura de Carpetas
-
-```text
-lib/
- ├── core/          # Utilidades y constantes globales
- ├── data/          # Modelos, Repositorios (Impl) y DataSources
- ├── domain/        # Entidades y Contratos (Interfaces)
- ├── presentation/  # Widgets, Pages y State Management (Providers)
- └── main.dart      # Punto de entrada de la app
-```
-
-## 🚀 Instalación y Ejecución
-
-1.  Clona el repositorio.
-2.  Ejecuta `flutter pub get` para instalar dependencias.
-3.  Asegúrate de tener un emulador o dispositivo conectado.
-4.  Ejecuta `flutter run`.
+-   **Diseño Modular**:
+    -   Los componentes complejos como el formulario se extraen a **Organisms** (`PolicyForm`), manteniendo la página limpia y enfocada en el ensamblaje y visualización del estado.
+    -   Los estilos de texto y elementos básicos se centralizan en **Atoms**, asegurando consistencia visual en toda la app.
